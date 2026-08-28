@@ -386,6 +386,19 @@ html, body {
   padding: 0 5px;
 }
 
+.header-meta select.source-tag {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.header-meta select.source-tag option {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
 .header-right {
   display: flex;
   align-items: center;
@@ -530,6 +543,18 @@ html, body {
   background: var(--orange-dim);
   border-radius: 4px;
   border: 1px solid rgba(255, 153, 64, 0.15);
+  animation: fadeIn 0.2s ease;
+}
+
+.source-switch-note {
+  align-self: flex-start;
+  padding: 4px 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--accent);
+  background: var(--accent-glow);
+  border-radius: 4px;
+  border: 1px solid rgba(57, 186, 230, 0.15);
   animation: fadeIn 0.2s ease;
 }
 
@@ -791,7 +816,7 @@ html, body {
       <div class="header-meta">
         <span id="metaProject"></span>
         <span id="metaDataset"></span>
-        <span class="source-tag" id="metaSource" style="display:none"></span>
+        <select class="source-tag" id="metaSource" style="display:none" onchange="switchSource()" title="Switch source mid-conversation -- keeps session context"></select>
       </div>
     </div>
     <div class="header-right">
@@ -1069,14 +1094,7 @@ function startChat() {
   document.getElementById('metaProject').textContent = 'proj: ' + selectedProject;
   document.getElementById('metaDataset').textContent = selectedDataset ? 'ds: ' + selectedDataset : '';
 
-  const metaSrc = document.getElementById('metaSource');
-  if (selectedSourceKey) {
-    const src = sourceCatalog.find(s => s.key === selectedSourceKey);
-    metaSrc.textContent = src ? src.key : selectedSourceKey;
-    metaSrc.style.display = '';
-  } else {
-    metaSrc.style.display = 'none';
-  }
+  populateMetaSourceSelect();
 
   // Avatar
   if (userProfile?.picture) {
@@ -1129,6 +1147,45 @@ function renderWelcome() {
 function changeProject() {
   sessionId = null;
   showConfigScreen();
+}
+
+/* Populates the in-chat header source select and syncs it to
+   selectedSourceKey. Always visible (not gated on a source being set) so
+   the user can switch into or out of a domain-specific source mid-chat. */
+function populateMetaSourceSelect() {
+  const sel = document.getElementById('metaSource');
+  sel.innerHTML = '<option value="">all sources</option>';
+  for (const s of sourceCatalog) {
+    const opt = document.createElement('option');
+    opt.value = s.key;
+    opt.textContent = s.key;
+    sel.appendChild(opt);
+  }
+  sel.value = selectedSourceKey || '';
+  sel.style.display = '';
+}
+
+/* Switches source_key mid-conversation. Deliberately does NOT touch
+   sessionId -- the server detects the source_key change on the next
+   message and rebuilds the agent (new domain prompt) while reusing the
+   existing ADK session, so conversation history survives the switch. */
+function switchSource() {
+  const sel = document.getElementById('metaSource');
+  selectedSourceKey = sel.value || null;
+  const label = selectedSourceKey
+    ? (sourceCatalog.find(s => s.key === selectedSourceKey)?.display_name || selectedSourceKey)
+    : 'all sources / generic mode';
+  addSourceSwitchNote(`Switched to ${label} -- session context preserved.`);
+}
+
+function addSourceSwitchNote(msg) {
+  const w = document.getElementById('welcome');
+  if (w) w.remove();
+  const div = document.createElement('div');
+  div.className = 'source-switch-note';
+  div.textContent = msg;
+  messagesEl().appendChild(div);
+  scrollToBottom();
 }
 
 async function newSession() {

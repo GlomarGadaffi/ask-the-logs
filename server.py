@@ -75,6 +75,17 @@ async def get_config():
     return {"client_id": os.environ.get("OAUTH_CLIENT_ID", "")}
 
 
+def _build_runner(token: str, project_id: str, dataset: Optional[str], source_key: Optional[str]) -> Runner:
+    """Builds an agent + runner for a given source context."""
+    agent = create_bigquery_agent(
+        access_token=token,
+        project_id=project_id,
+        default_dataset=dataset,
+        source_key=source_key,
+    )
+    return Runner(agent=agent, app_name="bigquery_agent", session_service=session_service)
+
+
 @app.get("/api/sources")
 async def get_sources():
     """Return the catalog of supported log sources with schema metadata."""
@@ -151,20 +162,17 @@ async def query(request: Request):
     # Get or create runner + session for this project + source context
     if session_id and session_id in active_runners:
         entry = active_runners[session_id]
-        runner = entry["runner"]
         session = entry["session"]
+        if entry["source_key"] != source_key:
+            # Source switch mid-conversation: rebuild the agent (new domain
+            # prompt) but reuse the existing ADK session, since ADK session
+            # history is keyed by session.id, not tied to a runner instance
+            # -- conversation context survives the switch.
+            entry["runner"] = _build_runner(token, project_id, dataset, source_key)
+            entry["source_key"] = source_key
+        runner = entry["runner"]
     else:
-        agent = create_bigquery_agent(
-            access_token=token,
-            project_id=project_id,
-            default_dataset=dataset,
-            source_key=source_key,
-        )
-        runner = Runner(
-            agent=agent,
-            app_name="bigquery_agent",
-            session_service=session_service,
-        )
+        runner = _build_runner(token, project_id, dataset, source_key)
         session = await session_service.create_session(
             app_name="bigquery_agent",
             user_id="web_user",
