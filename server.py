@@ -4,6 +4,7 @@ import os
 import json
 import time
 import asyncio
+import hashlib
 import warnings
 import logging
 from typing import Optional
@@ -29,11 +30,30 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from bigquery_agent.agent import create_bigquery_agent
 from bigquery_agent.sources import list_sources
 
+
+def _rate_limit_key(request: Request) -> str:
+    """Rate-limit by authenticated Bearer token (hashed) rather than raw IP:
+    users behind the same NAT/corporate egress shouldn't share one bucket,
+    and a stolen token from a fresh IP should still be limited. Falls back
+    to remote address for requests with no Bearer token."""
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        return hashlib.sha256(auth[7:].encode()).hexdigest()[:16]
+    return get_remote_address(request)
+
+
+limiter = Limiter(key_func=_rate_limit_key)
+
 app = FastAPI(title="BigQuery SQL Agent")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Per-user session state
 session_service = InMemorySessionService()
@@ -105,6 +125,7 @@ async def list_datasets(request: Request, project_id: str):
 
 
 @app.post("/api/query")
+@limiter.limit("10/minute")
 async def query(request: Request):
     """Stream agent response via SSE."""
     token = _extract_token(request)

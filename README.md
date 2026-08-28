@@ -80,7 +80,7 @@ agent = create_bigquery_agent(
 | `/api/sources` | GET | catalog of all log sources with schema metadata, descriptions, and example questions |
 | `/api/projects` | GET | GCP projects accessible to the authenticated user |
 | `/api/datasets` | GET | BigQuery datasets in a project |
-| `/api/query` | POST | stream agent response (SSE) |
+| `/api/query` | POST | stream agent response (SSE) — rate limited, 10/minute per authenticated user |
 | `/api/reset` | POST | clear session state |
 
 ### POST /api/query body
