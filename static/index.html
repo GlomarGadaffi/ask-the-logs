@@ -904,6 +904,10 @@ if (document.readyState === 'complete') {
 }
 
 function startGoogleLogin() {
+  if (CLIENT_ID === '') {
+    showLoginError('Server has no OAUTH_CLIENT_ID configured -- set it in .env and restart the server.');
+    return;
+  }
   if (!tokenClient) {
     showLoginError('Google Identity Services not loaded yet. Please wait.');
     return;
