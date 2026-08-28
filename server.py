@@ -48,6 +48,13 @@ def _extract_token(request: Request) -> str:
     return auth[7:]
 
 
+@app.get("/api/config")
+async def get_config():
+    """Serve public frontend config. Lets the OAuth client ID live in .env
+    instead of a hard-coded placeholder in static/index.html."""
+    return {"client_id": os.environ.get("OAUTH_CLIENT_ID", "")}
+
+
 @app.get("/api/sources")
 async def get_sources():
     """Return the catalog of supported log sources with schema metadata."""

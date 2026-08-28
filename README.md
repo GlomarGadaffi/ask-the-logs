@@ -118,12 +118,15 @@ the ui passes `source_key` in the query body for every message in the session. t
 ```bash
 pip install -r requirements.txt
 
-# set your Gemini API key
-export GOOGLE_API_KEY=your-key-here
+# copy .env.example to .env and fill in GOOGLE_API_KEY + OAUTH_CLIENT_ID
+# (see .env.example for where to get each one and the IAM perms you need)
+cp .env.example .env
 
 # run
 uvicorn bigquery_agent.server:app --reload --port 8000
 ```
+
+the OAuth client ID is read from `OAUTH_CLIENT_ID` and served to the browser via `GET /api/config` — it's never hard-coded in `static/index.html`.
 
 then open `http://localhost:8000`, set `CLIENT_ID` in `static/index.html` to your OAuth 2.0 client ID (Web application type, authorized origin `http://localhost:8000`).
 
