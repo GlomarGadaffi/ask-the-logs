@@ -840,13 +840,9 @@ let selectedDataset = null;
 let selectedSourceKey = null;
 let sourceCatalog = [];   // [{key, display_name, description, example_questions}, ...]
 
-// ─────────────────────────────────────────────
-// SET YOUR OAUTH CLIENT ID
-// Create at: https://console.cloud.google.com/apis/credentials
-// Type: Web application
-// Authorized JavaScript origins: http://localhost:8000
-// ─────────────────────────────────────────────
-const CLIENT_ID = '__YOUR_OAUTH_CLIENT_ID__';
+// OAuth client ID is served by GET /api/config, sourced from the
+// OAUTH_CLIENT_ID env var (see .env.example) -- not hard-coded here.
+let CLIENT_ID = null;
 
 const SCOPES = [
   'https://www.googleapis.com/auth/bigquery.readonly',
@@ -874,6 +870,21 @@ function showScreen(id) {
    ═══════════════════════════════════════════════ */
 let tokenClient = null;
 
+async function initAuth() {
+  try {
+    const r = await fetch('/api/config');
+    const cfg = await r.json();
+    CLIENT_ID = cfg.client_id || '';
+  } catch {
+    CLIENT_ID = '';
+  }
+  if (!CLIENT_ID) {
+    showLoginError('Server has no OAUTH_CLIENT_ID configured -- set it in .env and restart the server.');
+    return;
+  }
+  initTokenClient();
+}
+
 function initTokenClient() {
   if (typeof google === 'undefined' || !google.accounts) {
     setTimeout(initTokenClient, 200);
@@ -887,12 +898,16 @@ function initTokenClient() {
 }
 
 if (document.readyState === 'complete') {
-  initTokenClient();
+  initAuth();
 } else {
-  window.addEventListener('load', initTokenClient);
+  window.addEventListener('load', initAuth);
 }
 
 function startGoogleLogin() {
+  if (CLIENT_ID === '') {
+    showLoginError('Server has no OAUTH_CLIENT_ID configured -- set it in .env and restart the server.');
+    return;
+  }
   if (!tokenClient) {
     showLoginError('Google Identity Services not loaded yet. Please wait.');
     return;
