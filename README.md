@@ -113,6 +113,8 @@ run the server and open `http://localhost:8000`. the config screen lets you pick
 
 the ui passes `source_key` in the query body for every message in the session. the agent retains session context across messages — you can follow up naturally.
 
+the source tag in the chat header is a live selector — switching it mid-conversation swaps the agent's domain prompt for a different source without losing the session or prior conversation history, so you can e.g. ask a P25 question, switch to `mirkwood`, and correlate against what you just discussed.
+
 ## setup
 
 ```bash
