@@ -169,7 +169,8 @@ The Mirkwood schema design names three materialized views over emission_events:
 The design gives only these one-line purposes. It defines no SQL, no column lists and no
 dataset for them, so their columns are unknown here. Before querying one, confirm it
 exists in BigQuery and read its columns. If it is missing, answer from emission_events
-(device tracks: see "Device track" above; proximity: see the FINGERPRINT LOGIC join).
+(device tracks: see "Device track" above; proximity: self-join emission_events with
+ST_DISTANCE under 500 m and TIMESTAMP_DIFF under 300 s).
 """,
         example_questions=[
             "What channel types have the most events in the last 24 hours?",
@@ -358,7 +359,7 @@ FROM scanner.hits
 WHERE p25_nac != '' GROUP BY p25_nac ORDER BY hits DESC;
 
 -- Activity timeline by system
-SELECT DATE_TRUNC(ts, HOUR) AS hour, system_name, COUNT(*) AS hits
+SELECT TIMESTAMP_TRUNC(ts, HOUR) AS hour, system_name, COUNT(*) AS hits
 FROM scanner.hits GROUP BY hour, system_name ORDER BY hour DESC;
 """,
         example_questions=[
@@ -737,8 +738,9 @@ FROM wifi_attacks.alerts WHERE sig IN ('evil_twin', 'eapol') ORDER BY ts DESC;
     #   aspen_trip.py   @ 57b482a  squelch-triggered complex64 .iq capture
     #   aspen_sweep.ino @ 3d9062f  probe settings behind sweeps.sf / sweeps.bw
     #   README.md       @ 7cd52f4  workflow, heuristic / high-SNR caveat
-    # No iq_analysis table or emitter exists, and the field names in issue #10
-    # (estimated_bw_khz, estimated_sf, iq_file, ...) appear nowhere in that code.
+    # No iq_analysis table or emitter exists. Issue #10 field names are not emitted:
+    # estimated_bw_khz appears nowhere; iq_file and estimated_sf exist only as
+    # aspen_sniff.py parameters and locals, never as output.
     "lora_sweep": SourceConfig(
         display_name="LoRa RF Sweep (ashburn-sentry / aspen)",
         origin_repos=["ashburn-sentry", "roza-scavenger"],
@@ -810,8 +812,9 @@ lora_rf.iq_analysis; lora_rf.sweeps is the only table in this source.
 - sf and bw in lora_rf.sweeps are the probe settings aspen_sweep.ino tried, not
   I/Q estimates.
 Workflow per the README: sweep for activity, capture raw I/Q on a detected frequency,
-then run aspen_sniff.py on it. Questions about I/Q-derived SF/BW cannot be answered
-from BigQuery.
+then run aspen_sniff.py on it. As published, aspen_sniff.py does not run (SyntaxError at
+line 56), so the printed values above are the intended output, not what the file emits
+today. Questions about I/Q-derived SF/BW cannot be answered from BigQuery.
 
 EXAMPLE QUERIES
 ━━━━━━━━━━━━━━━
@@ -848,8 +851,9 @@ GROUP BY freq, sf, bw, cr ORDER BY rx_fail_count DESC;
         # UNVERIFIED (issue #5). Checked against pocket-dial @ 6c0eb17, tincan (was
         # ashburn-messenger) @ b28f41f, resiprocate (was reston-broker) @ 0ba595b and
         # deanon-demo (was wasatch-prospector) @ 2b9c899. None writes to BigQuery or
-        # to sip_cdr.calls. The column list traces only to the Mirkwood adapter input
-        # (deanon-demo adapters/pocket_dial.py:11-41, tests/test_adapters.py:164-175).
+        # to sip_cdr.calls. The columns are the declared target only. The Mirkwood adapter
+        # input (deanon-demo adapters/pocket_dial.py:11-41, tests/test_adapters.py:164-175)
+        # reads some of these keys; no code in the repos checked emits the rest.
         # pocket-dial CDR: src/SIP/CallDetailRecord.hpp:6-7,23-40,68-73;
         # CdrRing.cpp:398-400,410-425; CdrArchive.cpp:37-42,81-83,92,106,269;
         # CdrArchive.hpp:22-28,37,101; Helpers/HttpServer.cpp:2927-2932;
@@ -922,22 +926,22 @@ DOMAIN NOTES
 EXAMPLE QUERIES
 ━━━━━━━━━━━━━━━
 -- Call volume by hour
-SELECT DATE_TRUNC(ts, HOUR) AS hour, COUNT(*) AS calls
+SELECT TIMESTAMP_TRUNC(ts, HOUR) AS hour, COUNT(*) AS calls
 FROM sip_cdr.calls WHERE call_state = 'answered' GROUP BY hour ORDER BY hour;
 
 -- Longest calls
-SELECT call_id, extension, contact, duration_s
+SELECT call_id, extension, duration_s
 FROM sip_cdr.calls WHERE call_state = 'answered'
 ORDER BY duration_s DESC LIMIT 20;
 
 -- Failed/busy calls (connectivity issues)
-SELECT ts, extension, contact, call_state
+SELECT ts, extension, call_state
 FROM sip_cdr.calls WHERE call_state IN ('failed', 'busy') ORDER BY ts DESC;
 """,
         example_questions=[
             "How many calls were made in the last 24 hours?",
             "What is the average call duration?",
-            "Show me calls between specific extensions",
+            "Show me calls for one extension (caller/callee mapping unverified)",
             "How many calls failed or got BUSY responses?",
             "Show call volume by hour over the past week",
             "Which extensions are most active?",

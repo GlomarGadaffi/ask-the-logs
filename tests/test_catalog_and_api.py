@@ -73,13 +73,15 @@ class ApiTests(unittest.TestCase):
         resp = self.client.post("/api/query", json={"message": "hi", "project_id": "p"})
         self.assertEqual(resp.status_code, 401)
 
-    def test_query_rejects_empty_message_before_calling_llm(self):
-        resp = self.client.post(
-            "/api/query",
-            json={"message": "   ", "project_id": "p"},
-            headers={"Authorization": "Bearer test-token"},
-        )
+    def test_query_rejects_empty_message_before_building_agent(self):
+        with mock.patch.object(server, "_build_runner") as build:
+            resp = self.client.post(
+                "/api/query",
+                json={"message": "   ", "project_id": "p"},
+                headers={"Authorization": "Bearer test-token"},
+            )
         self.assertEqual(resp.status_code, 400)
+        build.assert_not_called()
 
     def test_query_requires_project_id(self):
         resp = self.client.post(
