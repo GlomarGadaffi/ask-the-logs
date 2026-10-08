@@ -50,6 +50,9 @@ SOURCE_CATALOG: dict[str, SourceConfig] = {
     # ─────────────────────────────────────────────────────────────────────────
     # MIRKWOOD — unified cross-channel fusion table
     # ─────────────────────────────────────────────────────────────────────────
+    # MATERIALIZED VIEWS block: GlomarGadaffi/deanon-demo (wasatch-prospector),
+    # EmissionEvent_Schema.md "materialized_views" @ 9a49d44. Names and one-line
+    # purposes are verbatim; the repo defines no view SQL or columns.
     "mirkwood": SourceConfig(
         display_name="Mirkwood — All Sources (cross-channel)",
         origin_repos=["wasatch-prospector"],
@@ -156,6 +159,17 @@ Proximity:       WHERE ST_DISTANCE(ST_GEOGPOINT(longitude, latitude),
 Device track:    GROUP BY device_fingerprint ORDER BY MIN(timestamp)
 Has surveillance flag: WHERE 'surveillance' IN UNNEST(JSON_VALUE_ARRAY(tags))
 Session activity: WHERE session_id IS NOT NULL GROUP BY session_id
+
+MATERIALIZED VIEWS
+━━━━━━━━━━━━━━━━━━
+The Mirkwood schema design names three materialized views over emission_events:
+  mv_device_tracks        Tracks per device_fingerprint with first/last seen and geometry
+  mv_proximity_pairs      Events within 500m and 5 minutes of each other
+  mv_high_activity_zones  Hotspots by channel and time window
+The design gives only these one-line purposes. It defines no SQL, no column lists and no
+dataset for them, so their columns are unknown here. Before querying one, confirm it
+exists in BigQuery and read its columns. If it is missing, answer from emission_events
+(device tracks: see "Device track" above; proximity: see the FINGERPRINT LOGIC join).
 """,
         example_questions=[
             "What channel types have the most events in the last 24 hours?",
