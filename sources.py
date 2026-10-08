@@ -804,58 +804,94 @@ GROUP BY freq, sf, bw, cr ORDER BY rx_fail_count DESC;
     # ─────────────────────────────────────────────────────────────────────────
     "sip_voip": SourceConfig(
         display_name="SIP/VoIP Call Records (pocket-dial)",
-        origin_repos=["pocket-dial", "ashburn-messenger", "cermak-magnate", "reston-broker"],
+        # UNVERIFIED (issue #5). Checked against pocket-dial @ 6c0eb17, tincan (was
+        # ashburn-messenger) @ b28f41f, resiprocate (was reston-broker) @ 0ba595b and
+        # deanon-demo (was wasatch-prospector) @ 2b9c899. None writes to BigQuery or
+        # to sip_cdr.calls. The column list traces only to the Mirkwood adapter input
+        # (deanon-demo adapters/pocket_dial.py:11-41, tests/test_adapters.py:164-175).
+        # pocket-dial CDR: src/SIP/CallDetailRecord.hpp:6-7,23-40,68-73;
+        # CdrRing.cpp:398-400,410-425; CdrArchive.cpp:37-42,81-83,92,106,269;
+        # CdrArchive.hpp:22-28,37,101; Helpers/HttpServer.cpp:2927-2932;
+        # Helpers/TimeSync.cpp:119; RequestsHandler.cpp:8661-8681; Session.cpp:94.
+        # tincan: main/sip_uac.cpp:114,
+        # main/poc_config.h:28-31. reConServer CDR: apps/reConServer/CDRFile.cxx:26,39-86.
+        # cermak-magnate not read and dropped from origin_repos (issue #5, Drawbridge).
+        origin_repos=["pocket-dial", "ashburn-messenger", "reston-broker"],
         description=(
-            "SIP call detail records from the pocket-dial ESP32-S3 SIP client "
-            "and cermak-magnate SIP server. Captures call state, extension, "
-            "contact URI, call ID, and SDP negotiation metadata."
+            "UNVERIFIED schema. Intended: SIP call records from the pocket-dial "
+            "ESP32-S3 SIP PBX (call result, caller/callee extensions, Call-ID, "
+            "duration). No code in pocket-dial, ashburn-messenger or reston-broker "
+            "writes to BigQuery or to sip_cdr.calls, so the table and its columns "
+            "could not be confirmed."
         ),
         suggested_dataset="sip_cdr",
-        domain_prompt="""You are querying SIP/VoIP call detail records from the pocket-dial
-ESP32-S3 SIP endpoint and cermak-magnate field SIP server infrastructure.
+        domain_prompt="""You are querying SIP/VoIP call records meant to come from the pocket-dial
+ESP32-S3 SIP PBX (registrar and call broker). The handset client is ashburn-messenger.
 
-SCHEMA — dataset: sip_cdr, table: calls
+UNVERIFIED SCHEMA. No code in pocket-dial, ashburn-messenger or reston-broker writes
+to BigQuery or to a sip_cdr.calls table. The columns below are this catalog's declared
+target, not a confirmed table. Before filtering on call_state run
+SELECT DISTINCT call_state to see the values that are really there. If the table or a
+column does not exist, say so; do not guess other names.
+
+SCHEMA — dataset: sip_cdr, table: calls   (target schema, unverified)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ts             TIMESTAMP   Event timestamp (UTC)
-  call_id        STRING      SIP Call-ID header (unique session identifier)
-  extension      STRING      Local SIP extension / phone number (primary ID)
-  contact        STRING      Remote SIP URI or contact address (destination)
-  call_state     STRING      Call state: RINGING, BUSY, OK, TERMINATED, FAILED
-  duration_s     INT64       Call duration in seconds (nullable, set on termination)
-  sdp            STRING      SIP SDP body (Session Description Protocol — negotiated
-                             codec, RTP ports, media type) (nullable)
-  server_id      STRING      Which SIP server handled this session
-  latitude       FLOAT64     Extension's GPS location at call time (nullable)
-  longitude      FLOAT64     Extension's GPS location at call time (nullable)
+  ts             TIMESTAMP   Call time (UTC). pocket-dial emits a wall-clock time only
+                             in its SD-card CSV (SD-capable eth build; RFC 3339 UTC),
+                             and only once its clock has synced. For an answered call
+                             it is the moment of answer, not the INVITE. Its /api/cdr
+                             and NVS ring carry steady-clock ms since boot, not a date.
+  call_id        STRING      SIP Call-ID of the dialog. pocket-dial: SD CSV only,
+                             truncated to 64 chars.
+  extension      STRING      pocket-dial has caller (From) and callee (To), bare
+                             extension strings truncated to 48 chars (anchor/trunk legs
+                             can carry other ids). No code defines which of the two
+                             maps to extension and which to contact.
+  contact        STRING      NOT EMITTED as such: pocket-dial records no Contact header
+                             and no SIP URI, only the bare caller/callee strings.
+  call_state     STRING      pocket-dial's field is "result", one of: answered, busy,
+                             cancelled, unavailable, failed. It never emits RINGING,
+                             OK or TERMINATED. One row per dialog, written once at
+                             teardown; there are no state-transition rows.
+  duration_s     INT64       Whole seconds of talk time (teardown minus answer, hold
+                             time included). 0, not NULL, when never answered.
+  sdp            STRING      NOT EMITTED: no pocket-dial CDR carries SDP or codec.
+  server_id      STRING      NOT EMITTED: no server identifier in any CDR code read.
+  latitude       FLOAT64     NOT EMITTED: pocket-dial has no location data.
+  longitude      FLOAT64     NOT EMITTED: pocket-dial has no location data.
 
 DOMAIN NOTES
 ━━━━━━━━━━━━
-- call_id is the canonical SIP session identifier. Use it to GROUP BY or JOIN
-  across multiple state transition events for the same call.
-- call_state progression: INVITE received → RINGING → OK (answered) → TERMINATED.
-  BUSY means the callee was unavailable. FAILED means a SIP error occurred.
-- SDP contains the negotiated audio codec (G.711 u-law/a-law is default for
-  ashburn-messenger, Opus for reston-broker), RTP port, and IP address for the
-  audio stream. Parse with JSON_VALUE if stored as JSON.
-- pocket-dial and ashburn-messenger use G.711 over WiFi, push-to-talk style.
-  reston-broker handles more complex SIP stacks via reSIProcate.
-- cermak-magnate bypasses password validation — it is a zero-auth field SIP server.
-  Extension numbers are arbitrary; no directory service.
+- pocket-dial records one row per torn-down dialog. call_id identifies that dialog;
+  do not expect a chain of state events per call_id.
+- pocket-dial's result: busy, cancelled and unavailable come from the Session states
+  Busy, Cancel and Unavailable. answered is a final state of Connected, Held or Bye.
+  Every other final state, including one that never left Invited, is failed.
+- The pocket-dial SD CSV has two more columns not in this schema: reason (free text,
+  48 chars max) and direction (internal, inbound or outbound).
+- ashburn-messenger (GitHub now calls it tincan) is the handset. It offers only G.711
+  mu-law (PCMU). In the files read (app_main.cpp, sip_uac.cpp) it writes no call
+  records, only ESP_LOG output.
+- reston-broker (GitHub now calls it resiprocate) is a fork of upstream reSIProcate.
+  Its CDR writer in the tree is upstream reConServer's CDRFile: a comma-separated file
+  with other columns (B2B call id, caller, callee, zones, start, connect, finish,
+  durations, disposition ANSWERED/BUSY/NO ANSWER/FAILED, response code). Its codecs
+  were not verified.
 
 EXAMPLE QUERIES
 ━━━━━━━━━━━━━━━
 -- Call volume by hour
 SELECT DATE_TRUNC(ts, HOUR) AS hour, COUNT(*) AS calls
-FROM sip_cdr.calls WHERE call_state = 'OK' GROUP BY hour ORDER BY hour;
+FROM sip_cdr.calls WHERE call_state = 'answered' GROUP BY hour ORDER BY hour;
 
 -- Longest calls
 SELECT call_id, extension, contact, duration_s
-FROM sip_cdr.calls WHERE call_state = 'TERMINATED'
+FROM sip_cdr.calls WHERE call_state = 'answered'
 ORDER BY duration_s DESC LIMIT 20;
 
 -- Failed/busy calls (connectivity issues)
 SELECT ts, extension, contact, call_state
-FROM sip_cdr.calls WHERE call_state IN ('FAILED', 'BUSY') ORDER BY ts DESC;
+FROM sip_cdr.calls WHERE call_state IN ('failed', 'busy') ORDER BY ts DESC;
 """,
         example_questions=[
             "How many calls were made in the last 24 hours?",
