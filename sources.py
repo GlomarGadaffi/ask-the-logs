@@ -730,6 +730,15 @@ FROM wifi_attacks.alerts WHERE sig IN ('evil_twin', 'eapol') ORDER BY ts DESC;
     # ─────────────────────────────────────────────────────────────────────────
     # LORA SWEEP — ashburn-sentry LoRa RF parameter discovery
     # ─────────────────────────────────────────────────────────────────────────
+    # I/Q ANALYSIS TIER block: GlomarGadaffi/lora-rf-toolkit (catalog name
+    # ashburn-sentry), repo HEAD 7cd52f4:
+    #   aspen_sniff.py  @ 8c9e01b  print()-only output. Line 56 `standard_bws =` has
+    #                              no value (SyntaxError), so it does not run as published.
+    #   aspen_trip.py   @ 57b482a  squelch-triggered complex64 .iq capture
+    #   aspen_sweep.ino @ 3d9062f  probe settings behind sweeps.sf / sweeps.bw
+    #   README.md       @ 7cd52f4  workflow, heuristic / high-SNR caveat
+    # No iq_analysis table or emitter exists, and the field names in issue #10
+    # (estimated_bw_khz, estimated_sf, iq_file, ...) appear nowhere in that code.
     "lora_sweep": SourceConfig(
         display_name="LoRa RF Sweep (ashburn-sentry / aspen)",
         origin_repos=["ashburn-sentry", "roza-scavenger"],
@@ -785,6 +794,24 @@ DOMAIN NOTES
 - rx_ok = full clean decode = we have all parameters correct including sync word.
 - sweepN increments after every full 902-928 MHz pass. Multiple sweeps build up
   a frequency activity map.
+
+I/Q ANALYSIS TIER (aspen_sniff.py) — NOT IN BIGQUERY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+There is NO BigQuery table and NO emitter for I/Q analysis. Do not query or invent
+lora_rf.iq_analysis; lora_rf.sweeps is the only table in this source.
+- aspen_trip.py (RTL-SDR) saves squelch-triggered bursts as complex64 .iq files.
+- aspen_sniff.py reads one complex64 I/Q file (argument: file path; --rate sample rate
+  in Hz, default 2.4e6), runs an STFT, and only PRINTS to stdout. It writes no JSON,
+  file or table. Printed values: raw bandwidth (kHz, before snapping); bandwidth
+  snapped to the nearest standard LoRa value (125, 250 or 500 kHz); symbol time Ts (ms);
+  raw SF; SF rounded to an integer; and a final "TARGET ACQUIRED: SF<n> / BW<n>" line.
+- The toolkit README calls the SF estimate heuristic and says it needs high SNR and clear,
+  non-overlapping transmissions.
+- sf and bw in lora_rf.sweeps are the probe settings aspen_sweep.ino tried, not
+  I/Q estimates.
+Workflow per the README: sweep for activity, capture raw I/Q on a detected frequency,
+then run aspen_sniff.py on it. Questions about I/Q-derived SF/BW cannot be answered
+from BigQuery.
 
 EXAMPLE QUERIES
 ━━━━━━━━━━━━━━━
