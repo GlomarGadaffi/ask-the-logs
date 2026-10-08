@@ -531,6 +531,26 @@ html, body {
   letter-spacing: 0.5px;
 }
 
+.msg-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.msg-action-btn {
+  padding: 3px 8px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.msg-action-btn:hover { border-color: var(--border-active); color: var(--text-primary); }
+
 .tool-indicator {
   align-self: flex-start;
   display: inline-flex;
@@ -1278,6 +1298,54 @@ function addStats(duration, inTok, outTok) {
   scrollToBottom();
 }
 
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      // fallback for non-secure contexts / denied permission
+      const ta = Object.assign(document.createElement('textarea'), { value: text });
+      ta.style.cssText = 'position:fixed;opacity:0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      ta.remove();
+      return ok;
+    } catch { return false; }
+  }
+}
+
+function downloadText(text) {
+  try {
+    const url = URL.createObjectURL(new Blob([text], { type: 'text/markdown' }));
+    Object.assign(document.createElement('a'), { href: url, download: 'response.md' }).click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return true;
+  } catch { return false; }
+}
+
+// Copy / Download controls for a finished agent message; `text` is the raw
+// markdown the model returned, not the rendered HTML.
+function addMessageActions(div, text) {
+  const bar = document.createElement('div');
+  bar.className = 'msg-actions';
+  const mk = (label, doneLabel, fn) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'msg-action-btn';
+    b.textContent = label;
+    b.addEventListener('click', async () => {
+      b.textContent = (await fn(text)) ? doneLabel : 'Failed';
+      setTimeout(() => { b.textContent = label; }, 1500);
+    });
+    bar.appendChild(b);
+  };
+  mk('Copy', 'Copied', copyText);
+  mk('Download', 'Saved', downloadText);
+  div.appendChild(bar);
+}
+
 function addTyping() {
   const div = document.createElement('div');
   div.className = 'typing-indicator';
@@ -1366,6 +1434,7 @@ async function sendMessage() {
             break;
           case 'done':
             removeTyping();
+            if (agentDiv && agentText) addMessageActions(agentDiv, agentText);
             addStats(data.duration, data.input_tokens, data.output_tokens);
             break;
         }
