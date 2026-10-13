@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>ask-the-logs: Cognitive BigQuery AI Agent for SIGINT &amp; Sensor Telemetry</title>
+<meta name="description" content="Talk to the logs. AI agent using Google Agents Development Kit (ADK) and Gemini to query BigQuery sensor datasets via natural language across the Glomar ecosystem.">
+<style>
+:root{
+  --bg:#fefefe;--face:#f4f4f4;--face-raised:#f0f0f0;--ink:#454545;--ink-dim:#777;--brass:#07a;--brass-hi:#07a;--brass-lo:#999;--line:#ddd;--alert:#c0392b;--ringing:#941352;--ok:#1a7f37;--warn:#b58900;
+  --mono:ui-monospace,"SF Mono","Cascadia Code","Consolas","Liberation Mono",monospace;--sans:"Open Sans",Arial,sans-serif;
+}
+html.inverted{
+  --bg:#000;--face:#111;--face-raised:#000;--ink:#d9d9d9;--ink-dim:#999;--brass:#00a2e7;--brass-hi:#00a2e7;--brass-lo:#555;--line:#333;--alert:#d24637;--ringing:#ca1a70;--ok:#5fd377;--warn:#e3b341;
+}
+html.contrast{
+  --ink:#050505;--ink-dim:#333;--brass:#03f;--brass-hi:#03f;--line:#bbb;--alert:#800;
+}
+html.inverted.contrast{
+  --ink:#fff;--ink-dim:#ccc;--brass:#44c7ff;--brass-hi:#44c7ff;--line:#666;--alert:#db695d;
+}
+html{background:var(--bg)}
+body{
+  font-family:var(--sans);color:var(--ink);background:var(--bg);font-size:15px;margin:2em auto;max-width:820px;padding:1em;line-height:1.55;hyphens:auto;-webkit-hyphens:auto;overflow-wrap:break-word;
+}
+a{color:var(--brass);text-underline-offset:.15em}a:visited{color:var(--ringing)}
+h1{
+  font-family:var(--mono);font-weight:700;font-size:1.85em;letter-spacing:.12em;text-transform:uppercase;color:var(--ink);line-height:1.2;margin-bottom:.2em;
+}
+h1 .dot{font-style:normal;color:var(--ink-dim)}
+h1 span{color:var(--ink-dim);font-weight:400;font-size:.55em;letter-spacing:.2em;margin-left:.6em;vertical-align:middle}
+h2{
+  font-family:var(--mono);font-weight:600;font-size:.85em;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);margin:2.4em 0 .8em;padding-bottom:.4em;border-bottom:1px solid var(--line);
+}
+h3{font-family:var(--mono);font-weight:600;font-size:.8em;letter-spacing:.08em;text-transform:uppercase;margin:1.4em 0 .4em;color:var(--ink)}
+p.st{margin-top:0;color:var(--ink-dim);font-style:italic}
+b{color:var(--ink)}
+code,pre{font-family:var(--mono);font-size:.9em}
+pre{overflow-x:auto;padding:.7em .9em;background:var(--face);border:1px solid var(--line);border-left:3px solid #ccc;border-radius:2px}
+pre code{color:var(--ink)}
+table{border-collapse:collapse;width:100%;font-size:.92em;margin:1em 0}
+th{font-family:var(--mono);font-weight:600;font-size:.75em;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-dim)}
+th,td{text-align:left;padding:.45em .8em .45em 0;border-bottom:1px solid var(--line);vertical-align:top}
+figure.dg{margin:1.4em 0}figure.dg div{overflow-x:auto;text-align:center}figure.dg svg{display:inline-block;max-width:100%;height:auto}
+html.inverted figure.dg{filter:invert(.93) hue-rotate(180deg)}
+figcaption{font-family:var(--mono);font-size:.75em;color:var(--ink-dim);margin-top:.6em}
+small{font-size:.75em}
+.wr{color:var(--alert);font-weight:600}
+.ok-tag{color:var(--ok);font-weight:600}
+.warn-tag{color:var(--warn);font-weight:600}
+nav{font-family:var(--mono);font-size:.8em;letter-spacing:.04em;color:var(--ink-dim);margin-bottom:2em}
+.sw{position:fixed;top:1em;right:1em;display:flex;gap:4px;z-index:99}
+.sw button{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.06em;background:var(--face);color:var(--ink);border:1px solid var(--line);padding:3px 7px;cursor:pointer;border-radius:2px}
+.sw button:hover{background:var(--face-raised)}
+.callout{background:var(--face);border:1px solid var(--line);border-left:4px solid var(--brass);padding:1em;margin:1.4em 0;border-radius:2px}
+.callout-alert{border-left-color:var(--alert)}
+.callout h4{font-family:var(--mono);margin:0 0 .5em;font-size:.82em;letter-spacing:.08em;text-transform:uppercase;color:var(--ink)}
+.tag-pill{display:inline-block;font-family:var(--mono);font-size:.7em;padding:1px 6px;border:1px solid var(--line);border-radius:2px;background:var(--face);color:var(--ink-dim)}
+.console-box{background:var(--face);border:1px solid var(--line);border-radius:3px;padding:1em;margin:1.5em 0;font-family:var(--mono);font-size:.85em}
+.console-box button{font-family:var(--mono);background:var(--bg);color:var(--ink);border:1px solid var(--line);padding:4px 8px;cursor:pointer;margin:4px 4px 4px 0}
+.console-box button:hover{border-color:var(--brass)}
+.log-output{background:var(--bg);border:1px solid var(--line);padding:.8em;margin-top:.8em;min-height:160px;overflow-y:auto;white-space:pre-wrap;font-size:.82em;color:var(--ink)}
+</style>
+</head>
+<body>
+
+<div class="sw">
+  <button id="contrast" title="Toggle high contrast">CONTRAST</button>
+  <button id="invmode" title="Toggle dark mode">INVERT</button>
+</div>
+
+<nav>
+  <a href="https://github.com/GlomarGadaffi/ask-the-logs">GitHub Repo</a> &middot;
+  <a href="../">glomar root</a> &middot;
+  <a href="../pocket-dial/">pocket-dial</a> &middot;
+  <a href="../ESP32_AdBlocker_Reborn/">ESP32 AdBlocker</a> &middot;
+  <a href="../bcd325-dashboard/">bcd325-dashboard</a> &middot;
+  <a href="../deanon-demo/">deanon-demo</a> &middot;
+  <a href="../sentinel-node-demo/">sentinel-node-demo</a>
+</nav>
+
+<header>
+  <h1>ask<i class="dot">&middot;</i>the<i class="dot">&middot;</i>logs<span>agent</span></h1>
+  <p class="st">Talk to the logs. AI agent using Google Agents Development Kit (ADK) and Gemini to query BigQuery datasets via natural language across the entire Glomar sensor ecosystem.</p>
+</header>
+
+<main>
+
+<div class="callout">
+  <h4>Cognitive Synthesis Over Fused Sensor Telemetry</h4>
+  <p style="margin:0;font-size:.92em">
+    <b>ask-the-logs</b> represents the cognitive peak of the Glomar stack. When paired with the 11 sensor pipelines—from USB scanner serial hits to LoRa mesh packets and Mirkwood cross-channel joins—it swaps domain-specific system prompts into Gemini at session start, converting plain English queries directly into valid BigQuery Standard SQL.
+  </p>
+</div>
+
+<h2>01 &middot; query execution pipeline</h2>
+<p>
+  Every query routes through Google ADK's <code>LlmAgent</code> with BigQuery toolsets. The agent retains full conversational context across follow-ups and supports dynamic source swapping:
+</p>
+
+<figure class="dg">
+  <div>
+    <svg viewBox="0 0 760 320" width="760" height="320" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1 L 10 5 L 0 9 z" fill="#454545"/>
+        </marker>
+      </defs>
+      <rect x="10" y="10" width="740" height="300" fill="#fcfcfc" stroke="#ddd" stroke-width="1.5" rx="3"/>
+
+      <!-- Step 1: User -->
+      <rect x="35" y="40" width="180" height="55" fill="#fff" stroke="#bbb" rx="2"/>
+      <text x="45" y="62" font-family="ui-monospace, monospace" font-size="10.5" font-weight="700" fill="#454545">ANALYST QUERY</text>
+      <text x="45" y="78" font-family="ui-monospace, monospace" font-size="8.5" fill="#777">"Show P25 calls within 5m of</text>
+      <text x="45" y="90" font-family="ui-monospace, monospace" font-size="8.5" fill="#777">an ADS-B surveillance orbit"</text>
+
+      <line x1="215" y1="67" x2="265" y2="67" stroke="#454545" stroke-width="1.2" marker-end="url(#arr)"/>
+
+      <!-- Step 2: ADK Agent + Prompt -->
+      <rect x="275" y="35" width="220" height="65" fill="#f4f4f4" stroke="#07a" stroke-width="1.5" rx="2"/>
+      <text x="285" y="55" font-family="ui-monospace, monospace" font-size="11" font-weight="700" fill="#07a">GOOGLE ADK + GEMINI</text>
+      <text x="285" y="72" font-family="ui-monospace, monospace" font-size="8.5" fill="#333">Injects domain prompt from sources.py</text>
+      <text x="285" y="86" font-family="ui-monospace, monospace" font-size="8" fill="#777">Encodes schema &amp; JSON_VALUE rules</text>
+
+      <line x1="495" y1="67" x2="545" y2="67" stroke="#454545" stroke-width="1.2" marker-end="url(#arr)"/>
+
+      <!-- Step 3: BigQuery -->
+      <rect x="555" y="35" width="170" height="65" fill="#fff" stroke="#bbb" rx="2"/>
+      <text x="565" y="55" font-family="ui-monospace, monospace" font-size="10.5" font-weight="700" fill="#1a7f37">BIGQUERY EXEC</text>
+      <text x="565" y="72" font-family="ui-monospace, monospace" font-size="8.5" fill="#454545">Runs Standard SQL</text>
+      <text x="565" y="86" font-family="ui-monospace, monospace" font-size="8" fill="#777">Partition &amp; cluster pruning</text>
+
+      <!-- Return Arc -->
+      <path d="M 640 100 L 640 180 L 125 180 L 125 130" stroke="#454545" stroke-width="1.2" stroke-dasharray="3 3"/>
+
+      <!-- Step 4: Streamed Explanation -->
+      <rect x="180" y="200" width="400" height="80" fill="#fff" stroke="#07a" rx="3"/>
+      <text x="195" y="222" font-family="ui-monospace, monospace" font-size="11" font-weight="700" fill="#07a">STREAMED SSE SYNTHESIS (/api/query)</text>
+      <text x="195" y="240" font-family="ui-monospace, monospace" font-size="9" fill="#333">&bull; Formats data into clear narrative tables and timelines</text>
+      <text x="195" y="254" font-family="ui-monospace, monospace" font-size="9" fill="#333">&bull; Highlights epistemic cautions (is_evidence: false)</text>
+      <text x="195" y="268" font-family="ui-monospace, monospace" font-size="8.5" fill="#777">&bull; Retains multi-turn conversation memory for follow-ups</text>
+    </svg>
+  </div>
+  <figcaption>Figure 1: Cognitive translation pipeline from natural language to BigQuery Standard SQL.</figcaption>
+</figure>
+
+<h2>02 &middot; two-tier lakehouse schema design</h2>
+<p>
+  <b>ask-the-logs</b> maps the Glomar ecosystem into two distinct architectural tiers:
+</p>
+<ul>
+  <li>
+    <b>Tier 1 &mdash; Native Per-Source Tables:</b> Raw, full-fidelity telemetry written in each tool's native format (e.g. <code>scanner.hits</code> from BCD325, <code>meshnarc.packets</code> from LoRa, <code>adsb.transponders</code>). Query these when investigating a single physical RF band.
+  </li>
+  <li>
+    <b>Tier 2 &mdash; Mirkwood Unified Cross-Channel Table:</b> Normalized cross-channel events in <code>mirkwood.emission_events</code> with stable SHA-256 <code>device_fingerprint</code> hashes, enabling spatiotemporal joins across disparate sensor families.
+  </li>
+</ul>
+
+<figure class="dg">
+  <div>
+    <svg viewBox="0 0 760 250" width="760" height="250" xmlns="http://www.w3.org/2000/svg">
+      <rect x="10" y="10" width="740" height="230" fill="#fcfcfc" stroke="#ddd" stroke-width="1.5" rx="3"/>
+
+      <!-- Tier 1 Box -->
+      <rect x="30" y="30" width="330" height="185" fill="#fff" stroke="#bbb" rx="2"/>
+      <text x="45" y="52" font-family="ui-monospace, monospace" font-size="11" font-weight="700" fill="#454545">TIER 1: NATIVE PER-SOURCE TABLES</text>
+      <text x="45" y="75" font-family="ui-monospace, monospace" font-size="9" fill="#777">&bull; scanner.hits &mdash; BCD325 GLG 13-field CSV</text>
+      <text x="45" y="93" font-family="ui-monospace, monospace" font-size="9" fill="#777">&bull; meshnarc.packets &mdash; Protobuf LoRa telemetry</text>
+      <text x="45" y="111" font-family="ui-monospace, monospace" font-size="9" fill="#777">&bull; p25_control.events &mdash; TSBK/TDULC CC decodes</text>
+      <text x="45" y="129" font-family="ui-monospace, monospace" font-size="9" fill="#777">&bull; adsb.transponders &mdash; Mode-S DF17 frames</text>
+      <text x="45" y="147" font-family="ui-monospace, monospace" font-size="9" fill="#777">&bull; lte_sigint.lte_captures &mdash; DCI / IMSI</text>
+      <text x="45" y="165" font-family="ui-monospace, monospace" font-size="9" fill="#777">&bull; sip_cdr.calls &mdash; Pocket-Dial VoIP CDRs</text>
+      <text x="45" y="195" font-family="ui-monospace, monospace" font-size="8.5" fill="#07a">High fidelity &middot; Source-specific fields</text>
+
+      <!-- Tier 2 Box -->
+      <rect x="390" y="30" width="340" height="185" fill="#fff" stroke="#07a" rx="2"/>
+      <text x="405" y="52" font-family="ui-monospace, monospace" font-size="11" font-weight="700" fill="#07a">TIER 2: MIRKWOOD UNIFIED TABLE</text>
+      <text x="405" y="75" font-family="ui-monospace, monospace" font-size="9.5" fill="#454545">Table: mirkwood.emission_events</text>
+      <text x="405" y="95" font-family="ui-monospace, monospace" font-size="9" fill="#777">&bull; SHA-256 device_fingerprint</text>
+      <text x="405" y="113" font-family="ui-monospace, monospace" font-size="9" fill="#777">&bull; channel_type: P25 | MESH | BLE | WIFI | LTE</text>
+      <text x="405" y="131" font-family="ui-monospace, monospace" font-size="9" fill="#777">&bull; ST_DISTANCE geospatial correlation</text>
+      <text x="405" y="149" font-family="ui-monospace, monospace" font-size="9" fill="#777">&bull; JSON_VALUE metadata &amp; tags array</text>
+      <text x="405" y="195" font-family="ui-monospace, monospace" font-size="8.5" fill="#07a">Cross-channel joins &middot; Spatiotemporal fusion</text>
+    </svg>
+  </div>
+  <figcaption>Figure 2: Two-tier data warehouse topology separating native sensor streams from unified correlation.</figcaption>
+</figure>
+
+<h2>03 &middot; supported log sources catalog</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Source Key</th>
+      <th>Display Name</th>
+      <th>Origin Repo</th>
+      <th>Dataset</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>mirkwood</code></td>
+      <td>Mirkwood &mdash; All Sources (Cross-Channel)</td>
+      <td>deanon-demo</td>
+      <td><code>mirkwood</code></td>
+    </tr>
+    <tr>
+      <td><code>scanner_rf</code></td>
+      <td>BCD325P2 Scanner RF Hits</td>
+      <td>bcd325-dashboard / splunk-addon</td>
+      <td><code>scanner</code></td>
+    </tr>
+    <tr>
+      <td><code>adsb</code></td>
+      <td>ADS-B Aviation Transponders <span class="tag-pill">synthetic</span></td>
+      <td>sentinel-node-demo</td>
+      <td><code>adsb</code></td>
+    </tr>
+    <tr>
+      <td><code>meshtastic</code></td>
+      <td>Meshtastic LoRa Mesh</td>
+      <td>meshtap</td>
+      <td><code>meshnarc</code></td>
+    </tr>
+    <tr>
+      <td><code>p25_control</code></td>
+      <td>P25 Control Channel Messages</td>
+      <td>p25-trunk-logger</td>
+      <td><code>p25_control</code></td>
+    </tr>
+    <tr>
+      <td><code>ble_scan</code></td>
+      <td>BLE Device Sightings</td>
+      <td>mockingbird-scrivener</td>
+      <td><code>ble_scan</code></td>
+    </tr>
+    <tr>
+      <td><code>wifi_wardrive</code></td>
+      <td>WiFi &amp; BT Wardriving</td>
+      <td>wigle-wardriver / rfparty</td>
+      <td><code>wardrive</code></td>
+    </tr>
+    <tr>
+      <td><code>wifi_attacks</code></td>
+      <td>802.11 Deauth Alerts</td>
+      <td>deauth-detector</td>
+      <td><code>wifi_attacks</code></td>
+    </tr>
+    <tr>
+      <td><code>lora_sweep</code></td>
+      <td>LoRa RF Parameter Sweeps</td>
+      <td>lora-rf-toolkit</td>
+      <td><code>lora_rf</code></td>
+    </tr>
+    <tr>
+      <td><code>sip_voip</code></td>
+      <td>SIP Call Detail Records</td>
+      <td>pocket-dial</td>
+      <td><code>sip_cdr</code></td>
+    </tr>
+    <tr>
+      <td><code>lte_cellular</code></td>
+      <td>LTE / IMSI-Catcher Alerts <span class="tag-pill">synthetic</span></td>
+      <td>Rayhunter / deanon-demo</td>
+      <td><code>lte_sigint</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>04 &middot; interactive query simulator</h2>
+<p>
+  Select an example query below to inspect how <b>ask-the-logs</b> injects domain prompt schema rules and constructs BigQuery SQL:
+</p>
+
+<div class="console-box">
+  <div style="margin-bottom:.5em;color:var(--ink-dim)">SELECT SAMPLE ANALYST QUERY:</div>
+  <button onclick="runQuery('cross')">Cross-Channel Co-Presence (Mirkwood)</button>
+  <button onclick="runQuery('scanner')">Active Talkgroups (BCD325P2)</button>
+  <button onclick="runQuery('adsb')">Surveillance Aircraft Orbits (ADS-B)</button>
+  <button onclick="runQuery('mesh')">Direct RF LoRa Messages (Meshtastic)</button>
+  <button onclick="clearQuery()">Clear</button>
+
+  <div class="log-output" id="query-log">Ready. Select a query to view agent SQL generation and analytical synthesis...</div>
+</div>
+
+<h2>05 &middot; synthetic boundaries &amp; cost controls</h2>
+<p>
+  To prevent operational abuse and uncontrolled compute spend:
+</p>
+<ul>
+  <li><b>Synthetic Data Envelope:</b> The <code>adsb</code> and <code>lte_cellular</code> datasets are strictly synthetic scenario demonstrations. No physical 1090 MHz receiver or cell interceptor is touched.</li>
+  <li><b>Rate Limiting:</b> <code>/api/query</code> is throttled to 10 queries per minute per authenticated OAuth identity.</li>
+  <li><b>Query Cost Guardrails:</b> System prompts enforce mandatory time-partition filters (e.g. <code>WHERE rx_timestamp &gt;= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR)</code>) to prevent accidental multi-terabyte table scans.</li>
+</ul>
+
+</main>
+
+<footer>
+  <p style="font-family:var(--mono);font-size:.8em;color:var(--ink-dim);margin-top:3em;padding-top:1em;border-top:1px solid var(--line)">
+    ask-the-logs &middot; cognitive lakehouse agent &middot; Google ADK &amp; Gemini &middot; <a href="../">&larr; return to glomar</a>
+  </p>
+</footer>
+
+<script>
+(function(){
+  var h = document.documentElement;
+  function load(k){try{return localStorage.getItem(k)==="1"}catch(e){return false}}
+  function save(k,v){try{localStorage.setItem(k,v?"1":"0")}catch(e){}}
+  [["contrast","pd-contrast"],["inverted","pd-inverted"]].forEach(function(p){if(load(p[1]))h.classList.add(p[0])});
+  document.getElementById("contrast").onclick=function(){save("pd-contrast",h.classList.toggle("contrast"))};
+  document.getElementById("invmode").onclick=function(){save("pd-inverted",h.classList.toggle("inverted"))};
+})();
+
+function appendQ(msg){
+  var el = document.getElementById('query-log');
+  el.textContent += '\n' + msg;
+  el.scrollTop = el.scrollHeight;
+}
+
+function clearQuery(){
+  document.getElementById('query-log').textContent = 'Log cleared. Ready.';
+}
+
+function runQuery(q){
+  clearQuery();
+  if(q==='cross'){
+    appendQ('USER: "Find P25 trunked calls that occurred within 2 minutes of a BLE surveillance hit"');
+    appendQ('AGENT: Loaded domain prompt for [mirkwood] (emission_events schema)');
+    appendQ('\nGENERATED SQL:');
+    appendQ('SELECT p.timestamp AS p25_time, b.timestamp AS ble_time,\n       p.primary_id AS talkgroup, b.primary_id AS ble_mac,\n       ST_DISTANCE(ST_GEOGPOINT(p.longitude, p.latitude),\n                   ST_GEOGPOINT(b.longitude, b.latitude)) AS dist_m\nFROM mirkwood.emission_events p\nJOIN mirkwood.emission_events b\n  ON TIMESTAMP_DIFF(p.timestamp, b.timestamp, SECOND) BETWEEN -120 AND 120\nWHERE p.channel_type = "P25_TRUNK"\n  AND b.channel_type = "BLE"\n  AND "surveillance" IN UNNEST(JSON_VALUE_ARRAY(b.tags))\n  AND p.timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR);');
+    appendQ('\nSYNTHESIS: Executed successfully. Returned 3 candidate correlation hypotheses.');
+    appendQ('NOTE: Flagged epistemic status: CORRELATION_HYPOTHESIS [is_evidence: false].');
+  } else if(q==='scanner'){
+    appendQ('USER: "What are the most active talkgroups on the scanner in the last 24 hours?"');
+    appendQ('AGENT: Loaded domain prompt for [scanner_rf] (scanner.hits schema)');
+    appendQ('\nGENERATED SQL:');
+    appendQ('SELECT frequency_or_tgid AS talkgroup, system_name, COUNT(*) AS hits\nFROM scanner.hits\nWHERE ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR)\n  AND modulation IN ("P25", "DMR", "NXDN")\nGROUP BY talkgroup, system_name\nORDER BY hits DESC LIMIT 10;');
+    appendQ('\nSYNTHESIS: TGID 10101 (County Dispatch) logged 412 voice grants; TGID 10105 logged 188 hits.');
+  } else if(q==='adsb'){
+    appendQ('USER: "Show me any orbit-pattern aircraft with surveillance ICAO flags below 3000 ft"');
+    appendQ('AGENT: Loaded domain prompt for [adsb] (adsb.transponders schema)');
+    appendQ('\nGENERATED SQL:');
+    appendQ('SELECT ts, icao_hex, callsign, altitude_ft, distance_km, raw_weight\nFROM adsb.transponders\nWHERE orbit_pattern = true\n  AND icao_surveillance_flag = true\n  AND altitude_ft < 3000\n  AND ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR)\nORDER BY raw_weight DESC LIMIT 10;');
+    appendQ('\nSYNTHESIS: Found 1 synthetic scenario match: ICAO A12C34 (Callsign OMRON41), 2100 ft AGL, orbiting 4.2 km from node.');
+  } else if(q==='mesh'){
+    appendQ('USER: "Find text messages captured directly over the air (not via MQTT)"');
+    appendQ('AGENT: Loaded domain prompt for [meshtastic] (meshnarc.packets schema)');
+    appendQ('\nGENERATED SQL:');
+    appendQ('SELECT rx_timestamp, from_long_name, from_id,\n       JSON_VALUE(payload_json, "$.text") AS message,\n       rx_rssi, rx_snr\nFROM meshnarc.packets\nWHERE port_num = "TEXT_MESSAGE_APP"\n  AND via_mqtt = false\n  AND rx_timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR)\nORDER BY rx_timestamp DESC LIMIT 20;');
+    appendQ('\nSYNTHESIS: 14 direct RF packets received on LongFast channel with average RSSI -84 dBm.');
+  }
+}
+</script>
+</body>
+</html>
