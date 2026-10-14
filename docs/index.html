@@ -114,6 +114,58 @@ nav{font-family:var(--mono);font-size:.8em;letter-spacing:.04em;color:var(--ink-
 .console-box button:hover{border-color:var(--brass)}
 .log-output{background:var(--bg);border:1px solid var(--line);padding:.8em;margin-top:.8em;min-height:160px;overflow-y:auto;white-space:pre-wrap;font-size:.82em;color:var(--ink)}
 </style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "@id": "https://glomargadaffi.github.io/ask-the-logs/#faq",
+  "isPartOf": {
+    "@id": "https://glomargadaffi.github.io/ask-the-logs/#code"
+  },
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is ask-the-logs?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "A natural-language interface to BigQuery. You ask a question in plain English. A Google Agent Development Kit agent with Gemini turns it into SQL, runs it, and explains the result."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What do I need to run it?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Python dependencies from requirements.txt, a Google API key, an OAuth 2.0 web client ID, and BigQuery permissions on your datasets. The .env.example file explains where to get each one. Start the server with uvicorn on port 8000 and open it in a browser."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does it cost anything to use?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Query cost depends on how much data each query scans. The README advises adding a time filter on partitioned tables to keep costs down."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I add my own dataset?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Each source is one entry in sources.py, with a domain prompt that describes its schema and vocabulary, a suggested dataset, and example questions. The agent loads that prompt at session start."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is the sample data real?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Some of it isn't. The README says which sources are synthetic, and that real captures from some tools need their own hardware."
+      }
+    }
+  ]
+}
+</script>
 </head>
 <body>
 
@@ -347,6 +399,20 @@ nav{font-family:var(--mono);font-size:.8em;letter-spacing:.04em;color:var(--ink-
 </ul>
 
 </main>
+
+<section class="faq" id="faq">
+<h2>Frequently asked questions</h2>
+<h3>What is ask-the-logs?</h3>
+<p>A natural-language interface to BigQuery. You ask a question in plain English. A Google Agent Development Kit agent with Gemini turns it into SQL, runs it, and explains the result.</p>
+<h3>What do I need to run it?</h3>
+<p>Python dependencies from requirements.txt, a Google API key, an OAuth 2.0 web client ID, and BigQuery permissions on your datasets. The .env.example file explains where to get each one. Start the server with uvicorn on port 8000 and open it in a browser.</p>
+<h3>Does it cost anything to use?</h3>
+<p>Query cost depends on how much data each query scans. The README advises adding a time filter on partitioned tables to keep costs down.</p>
+<h3>Can I add my own dataset?</h3>
+<p>Yes. Each source is one entry in sources.py, with a domain prompt that describes its schema and vocabulary, a suggested dataset, and example questions. The agent loads that prompt at session start.</p>
+<h3>Is the sample data real?</h3>
+<p>Some of it isn&#x27;t. The README says which sources are synthetic, and that real captures from some tools need their own hardware.</p>
+</section>
 
 <footer>
   <p style="font-family:var(--mono);font-size:.8em;color:var(--ink-dim);margin-top:3em;padding-top:1em;border-top:1px solid var(--line)">
